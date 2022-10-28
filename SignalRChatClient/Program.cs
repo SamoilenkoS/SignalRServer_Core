@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.SignalR.Client;
+﻿using Lection2_Core.Core;
+using Microsoft.AspNetCore.SignalR.Client;
 
 var url = "https://localhost:5001/chat";
 
@@ -7,15 +8,73 @@ var connection = new HubConnectionBuilder()
     .WithAutomaticReconnect()
     .Build();
 
-// receive a message from the hub
-connection.On<string>("GetMessage", (message) => Console.WriteLine(message));
+connection.On<string>(nameof(ISignalRClient.GetMessage), (message) => Console.WriteLine(message));
 
 await connection.StartAsync();
-
-string input;
+string? input;
 do
 {
-    input = Console.ReadLine();
-    await connection.InvokeAsync("SendMessageToAll", input);
+    input = GetNickname();
+}
+while (!await SetNickname(input));
+
+do
+{
+    input = GetInputMessage();
+    if (input == "/menu")
+    {
+        await CallMenuAsync();
+    }
+    else
+    {
+        await connection.InvokeAsync(nameof(ISignalRServer.SendMessageToAll), input);
+    }
 } while (!string.IsNullOrEmpty(input));
-// send a message to the hub
+
+async Task CallMenuAsync()
+{
+    int menuItem;
+    do
+    {
+        Console.Clear();
+        Console.WriteLine("1 - personal message\n2 - Change nickname\n3 - Global message");
+    } while (!int.TryParse(Console.ReadLine(), out menuItem));
+
+    switch (menuItem)
+    {
+        case 1:
+            var nickname = GetNickname();
+            var message = GetInputMessage();
+            await SendPersonalMessage(nickname, message);
+            break;
+        case 2:
+            nickname = GetNickname();
+            await SetNickname(nickname);
+            break;
+    }
+
+    Console.Clear();
+}
+
+async Task<bool> SetNickname(string? nickname)
+{
+    var response = await connection.InvokeAsync<bool>(nameof(ISignalRServer.SetNickname), nickname);
+    Console.Clear();
+    return response;
+}
+
+async Task SendPersonalMessage(string nickname, string message)
+{
+    await connection.InvokeAsync(nameof(ISignalRServer.SendPersonalMessage), nickname, message);
+}
+
+static string? GetNickname()
+{
+    Console.Write("Enter nickname: ");
+    return Console.ReadLine();
+}
+
+static string? GetInputMessage()
+{
+    return Console.ReadLine();
+}

@@ -11,4 +11,10 @@
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="6.0.10" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Reference Include="Lection2_Core.Core">
+      <HintPath>..\..\Lection2_Core_29_09\Lection2_Core.Core\bin\Debug\net6.0\Lection2_Core.Core.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+
 </Project>
