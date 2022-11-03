@@ -8,7 +8,7 @@ var connection = new HubConnectionBuilder()
     .WithAutomaticReconnect()
     .Build();
 
-connection.On<string>(nameof(ISignalRClient.GetMessage), (message) => Console.WriteLine(message));
+connection.On<MessageSnapshot>("GetMessage", PrintMessage);
 
 await connection.StartAsync();
 string? input;
@@ -18,6 +18,9 @@ do
 }
 while (!await SetNickname(input));
 
+var nickname = input;
+
+await ShowRecentMessages(connection, nickname);
 do
 {
     input = GetInputMessage();
@@ -27,7 +30,7 @@ do
     }
     else
     {
-        await connection.InvokeAsync(nameof(ISignalRServer.SendMessageToAll), input);
+        await connection.InvokeAsync("SendMessageToAll", input);
     }
 } while (!string.IsNullOrEmpty(input));
 
@@ -37,7 +40,7 @@ async Task CallMenuAsync()
     do
     {
         Console.Clear();
-        Console.WriteLine("1 - personal message\n2 - Change nickname\n3 - Global message");
+        Console.WriteLine("1 - personal message\n2 - Change nickname\n3 - Change personal color");
     } while (!int.TryParse(Console.ReadLine(), out menuItem));
 
     switch (menuItem)
@@ -51,21 +54,36 @@ async Task CallMenuAsync()
             nickname = GetNickname();
             await SetNickname(nickname);
             break;
+        case 3:
+            var color = GetInputMessage();
+            var result = Enum.TryParse(typeof(ConsoleColor), color, out var colorEnum);
+            if (result)
+            {
+                await connection.InvokeAsync(
+                    "SetPersonalColor", (ConsoleColor)colorEnum);
+            }
+            break;
     }
 
     Console.Clear();
+    await ShowRecentMessages(connection, nickname);
+}
+
+string nameof(object setPersonalColor)
+{
+    throw new NotImplementedException();
 }
 
 async Task<bool> SetNickname(string? nickname)
 {
-    var response = await connection.InvokeAsync<bool>(nameof(ISignalRServer.SetNickname), nickname);
+    var response = await connection.InvokeAsync<bool>("SetNickname", nickname);
     Console.Clear();
     return response;
 }
 
 async Task SendPersonalMessage(string nickname, string message)
 {
-    await connection.InvokeAsync(nameof(ISignalRServer.SendPersonalMessage), nickname, message);
+    await connection.InvokeAsync("SendPersonalMessage", nickname, message);
 }
 
 static string? GetNickname()
@@ -77,4 +95,23 @@ static string? GetNickname()
 static string? GetInputMessage()
 {
     return Console.ReadLine();
+}
+
+static async Task ShowRecentMessages(HubConnection connection, string? nickname)
+{
+    var messages = await connection.InvokeAsync<IEnumerable<MessageSnapshot>>(
+        "GetRecentMessages", 10);
+
+    foreach (var message in messages)
+    {
+        PrintMessage(message);
+    }
+}
+
+static void PrintMessage(MessageSnapshot message)
+{
+    var current = Console.ForegroundColor;
+    Console.ForegroundColor = message.SenderUserInfo.Color ?? current;
+    Console.WriteLine($"{DateTime.UtcNow}:{message.SenderUserInfo.Nickname}:{message.ReceiverNickname}:{message.Message}");
+    Console.ForegroundColor = current;
 }
